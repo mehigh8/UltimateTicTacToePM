@@ -19,6 +19,7 @@
 
 Arduino_ST7789 tft = Arduino_ST7789(TFT_DC, TFT_RST);
 char board[9][9];
+char bigBoard[3][3];
 
 volatile int currentBox = -1;
 volatile int placement = ALL;
@@ -103,6 +104,63 @@ void updatePlacement(int boxNumber) {
   }
 }
 
+void drawWinnerSmall(int x, int y, char value) {
+  int xPos = 12 + x * 24;
+  int yPos = 12 + y * 24;
+  tft.fillRect(xPos + 1, yPos + 1, 71, 71, BLACK);
+
+  xPos += 8;
+  yPos += 5;
+  tft.setTextColor(GREEN);
+  if (value == 'X') {
+    tft.setCursor(xPos, yPos);
+    tft.println(value);
+    tft.setCursor(xPos + 48, yPos);
+    tft.println(value);
+    tft.setCursor(xPos + 24, yPos + 24);
+    tft.println(value);
+    tft.setCursor(xPos, yPos + 48);
+    tft.println(value);
+    tft.setCursor(xPos + 48, yPos + 48);
+    tft.println(value);
+  } else {
+    tft.setCursor(xPos, yPos);
+    tft.println(value);
+    tft.setCursor(xPos + 24, yPos);
+    tft.println(value);
+    tft.setCursor(xPos + 48, yPos);
+    tft.println(value);
+    tft.setCursor(xPos, yPos + 24);
+    tft.println(value);
+    tft.setCursor(xPos + 48, yPos + 24);
+    tft.println(value);
+    tft.setCursor(xPos, yPos + 48);
+    tft.println(value);
+    tft.setCursor(xPos + 24, yPos + 48);
+    tft.println(value);
+    tft.setCursor(xPos + 48, yPos + 48);
+    tft.println(value);
+  }
+
+  tft.setTextColor(WHITE);
+}
+
+void checkWinSmall(int boxNumber) {
+  int x = boxNumber % 9;
+  int y = boxNumber / 9;
+  x -= x % 3;
+  y -= y % 3;
+
+  if (board[y][x] != '_' && board[y][x] != '#' && board[y][x] == board[y+1][x] && board[y][x] == board[y+2][x]) {
+    bigBoard[y/3][x/3] = player;
+    placement = ALL;
+    for (int i = 0; i < 3; i++)
+      for (int j = 0; j < 3; j++)
+        board[y + i][x + j] = '#';
+    drawWinnerSmall(x, y, player);
+  }
+}
+
 bool placeValue(char value, int boxNumber) {
   if (canPlace(boxNumber)) {
     int x = 12 + (boxNumber % 9) * 24 + 8;
@@ -111,6 +169,7 @@ bool placeValue(char value, int boxNumber) {
     tft.println(value);
     board[boxNumber / 9][boxNumber % 9] = value;
     updatePlacement(boxNumber);
+    checkWinSmall(boxNumber);
     return true;
   }
 
@@ -184,6 +243,10 @@ void setup() {
   for (int i = 0; i < 9; i++)
     for (int j = 0; j < 9; j++)
       board[i][j] = '_';
+
+  for (int i = 0; i < 3; i++)
+    for (int j = 0; j < 3; j++)
+      bigBoard[i][j] = '_';
 
   Serial.begin(9600);
 
