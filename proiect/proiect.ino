@@ -246,8 +246,6 @@ bool placeValue(char value, int boxNumber) {
     return true;
   }
   playSound(29, 100);
-  _delay_ms(150);
-  playSound(29, 100);
   return false;
 }
 
