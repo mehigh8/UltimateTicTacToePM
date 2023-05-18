@@ -1,7 +1,6 @@
 #include <SPI.h>
 #include <Adafruit_GFX.h>
 #include <Arduino_ST7789_Fast.h>
-#include "pitches.h"
 #include "placements.h"
 
 #define SCR_SIZE   240
@@ -21,6 +20,9 @@ volatile int moveCount = 0;
 volatile long lastDebounceTime1 = 0;
 volatile long lastDebounceTime0 = 0;
 volatile long debounceDelay = 50;
+
+volatile int currentTimerCount = 0;
+volatile int stopTimerCount = 0;
 
 ISR(INT0_vect) {
   if (millis() - lastDebounceTime0 > debounceDelay) {
@@ -48,6 +50,16 @@ ISR(INT1_vect) {
   }
 
   lastDebounceTime1 = millis();
+}
+
+ISR(TIMER1_OVF_vect) {
+  if (TCCR1A != 0 || TCCR1B != 0) {
+    currentTimerCount++;
+    if (currentTimerCount == stopTimerCount) {
+      TCCR1A = 0;
+      TCCR1B = 0;
+    }
+  }
 }
 
 void drawBoard() {
@@ -233,13 +245,15 @@ bool placeValue(char value, int boxNumber) {
     checkWin(boxNumber, value);
     return true;
   }
-  tone(PD4, NOTE_A2, 100);
+  playSound(29, 100);
+  _delay_ms(150);
+  playSound(29, 100);
   return false;
 }
 
 void finishGame(bool draw, char winner) {
   state = 3;
-  tone(PD4, NOTE_B5, 200);
+  playSound(200, 200);
   tft.fillScreen(BLACK);
   tft.setTextSize(3);
 
@@ -269,10 +283,6 @@ void selectBox(uint16_t potentiometerValue) {
   int16_t xPos = 12 + (currentBox % 9) * 24 + 2;
   int16_t yPos = 12 + (currentBox / 9) * 24 + 22;
   if (currentBox != -1) {
-    // for (int i = 0; i < 20; i++) {
-    //   tft.drawPixel(xPos, yPos, BLACK);
-    //   xPos++;
-    // }
     tft.drawLine(xPos, yPos, xPos + 19, yPos, BLACK);
   }
 
@@ -287,7 +297,6 @@ void initADC() {
   ADMUX |= (1 << REFS0);
 
   ADCSRA = 0;
-  // ADCSRA |= (1 << ADPS0);
   ADCSRA |= (1 << ADPS1);
   ADCSRA |= (1 << ADPS2);
   ADCSRA |= (1 << ADEN);
@@ -310,13 +319,32 @@ void initInterrupts() {
   EIMSK = 0;
 
   EICRA |= (1 << ISC11);
-  //EICRA |= (1 << ISC10);
   EICRA |= (1 << ISC01);
-  //EICRA |= (1 << ISC00);
 
   EIMSK |= (1 << INT0);
   EIMSK |= (1 << INT1);
 
+  TCCR1A = 0;
+  TCCR1B = 0;
+  
+  TCNT1 = 0;
+  TIMSK1 = 0;
+  TIMSK1 |= (1 << TOIE1);
+
+  sei();
+}
+
+void playSound(uint8_t compareValue, int stopCount) {
+  cli();
+  currentTimerCount = 0;
+  stopTimerCount = stopCount;
+  TCNT1 = 0;
+  TCCR1A |= (1 << COM1A1);
+  TCCR1A |= (1 << WGM10);
+  TCCR1B |= (1 << WGM12);
+  TCCR1B |= (1 << CS11);
+  TCCR1B |= (1 << CS10);
+  OCR1A = compareValue;
   sei();
 }
 
@@ -352,6 +380,7 @@ void drawMenu() {
 
 void setup() {
   Serial.begin(9600);
+  DDRB |= (1 << PB1);
   initADC();
   initInterrupts();
   tft.begin();
