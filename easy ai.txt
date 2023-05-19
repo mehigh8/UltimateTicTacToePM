@@ -1,0 +1,15 @@
+o singura tabla:
+- cautam mutarea cu cea mai buna prioritate
+
+toate tablele:
+- calculam in tabla mare cea mai buna mutare, si in tabla din mutarea respectiva calculam cea mai buna mutare
+
+prioritati:
+0 - jucatorul curent castiga tabla
+1 - jucatorul curent blocheaza adversarul din a castiga tabla
+2 - daca tabla este goala, mutare in colt
+3 - daca jucatorul curent nu a mutat deloc in tabla curenta, iar inamicul a mutat in centru, mutare in colt
+3 - daca jucatorul curent nu a mutat deloc in tabla curenta, iar inamicul nu a mutat in centru, mutare in centru
+4 - mutare care duce tabla intr-o stare din care jucatorul curent poate castiga tabla cu o mutare
+5 - mutare in colt
+6 - else
