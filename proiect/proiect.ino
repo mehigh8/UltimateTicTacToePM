@@ -22,7 +22,7 @@ volatile bool hasWon = false;
 
 volatile long lastDebounceTime1 = 0;
 volatile long lastDebounceTime0 = 0;
-volatile long debounceDelay = 50;
+volatile long debounceDelay = 100;
 
 volatile int currentTimerCount = 0;
 volatile int stopTimerCount = 0;
@@ -41,6 +41,9 @@ ISR(INT0_vect) {
       }
     } else if (state == SP_MENU) {
       difficulty = EASY;
+      drawSelectSymbol();
+    } else if (state == SP_SYMBOL) {
+      player = 'X';
       startGame();
     } else {
       drawMenu();
@@ -57,6 +60,9 @@ ISR(INT1_vect) {
       startGame();
     } else if (state == SP_MENU) {
       difficulty = HARD;
+      drawSelectSymbol();
+    } else if (state == SP_SYMBOL) {
+      player = 'O';
       startGame();
     } else {
       drawMenu();
@@ -81,7 +87,8 @@ void startGame() {
   state = GAME;
   currentBox = -1;
   placement = ALL;
-  player = 'X';
+  if (gameMode == MULTI)
+    player = 'X';
   moveCount = 0;
   hasWon = false;
 
@@ -94,6 +101,11 @@ void startGame() {
       bigBoard[i][j] = '_';
   
   drawBoard();
+  if (gameMode == SINGLE && player == 'O') {
+    int y = random(3);
+    int x = random(3);
+    placeValue('X', y * 27 + x * 3);
+  }
 }
 
 bool canPlace(int boxNumber) {
@@ -268,18 +280,18 @@ bool canWinAI(char localBoard[3][3], char value) {
       || (localBoard[y][x+2] == value && localBoard[y][x+2] == localBoard[y+1][x+1] && localBoard[y][x+2] == localBoard[y+2][x]);
 }
 
-int movePriorityEasy(char localBoard[3][3], int i, int j) {
+int movePriorityEasy(char localBoard[3][3], int i, int j, char currentPlayer) {
   if (localBoard[i][j] != '_')
     return 99;
   
-  char oppositePlayer = (player == 'X' ? 'O' : 'X');
+  char oppositePlayer = (currentPlayer == 'X' ? 'O' : 'X');
   char secondLocalBoard[3][3];
   for (int i = 0; i < 3; i++)
       for (int j = 0; j < 3; j++)
         secondLocalBoard[i][j] = localBoard[i][j];
   
-  secondLocalBoard[i][j] = player;
-  if (canWinAI(secondLocalBoard, player))
+  secondLocalBoard[i][j] = currentPlayer;
+  if (canWinAI(secondLocalBoard, currentPlayer))
     return 0;
   
   secondLocalBoard[i][j] = oppositePlayer;
@@ -289,7 +301,7 @@ int movePriorityEasy(char localBoard[3][3], int i, int j) {
   if (emptyBoard(localBoard) && ((i == 0 || i == 2) && (j == 0 || j == 2)))
     return 2;
   
-  if (countInBoard(localBoard, player) == 0) {
+  if (countInBoard(localBoard, currentPlayer) == 0) {
     if (localBoard[1][1] == oppositePlayer) {
       if ((i == 0 || i == 2) && (j == 0 || j == 2))
         return 3;
@@ -299,9 +311,9 @@ int movePriorityEasy(char localBoard[3][3], int i, int j) {
     }
   }
 
-  secondLocalBoard[i][j] = player;
-  int box = findBestEasy(secondLocalBoard);
-  if (movePriorityEasy(secondLocalBoard, box / 3, box % 3) == 0)
+  secondLocalBoard[i][j] = currentPlayer;
+  int box = findBestEasy(secondLocalBoard, currentPlayer);
+  if (movePriorityEasy(secondLocalBoard, box / 3, box % 3, currentPlayer) == 0)
     return 4;
   
   if ((i == 0 || i == 2) && (j == 0 || j == 2))
@@ -310,11 +322,11 @@ int movePriorityEasy(char localBoard[3][3], int i, int j) {
   return 6;
 }
 
-int findBestEasy(char localBoard[3][3]) {
+int findBestEasy(char localBoard[3][3], char currentPlayer) {
   int bestMove = 99, bestI = 0, bestJ = 0;
   for (int i = 0; i < 3; i++)
     for (int j = 0; j < 3; j++) {
-      int currentMove = movePriorityEasy(localBoard, i, j);
+      int currentMove = movePriorityEasy(localBoard, i, j, currentPlayer);
       if (currentMove < bestMove) {
         bestMove = currentMove;
         bestI = i;
@@ -325,7 +337,7 @@ int findBestEasy(char localBoard[3][3]) {
   return bestI * 3 + bestJ;
 }
 
-int searchMoveEasy() {
+void searchMoveEasy() {
   int localPlacement = placement;
 
   if (placement == ALL) {
@@ -334,7 +346,7 @@ int searchMoveEasy() {
       for (int j = 0; j < 3; j++)
         localBigBoard[i][j] = bigBoard[i][j];
     
-    localPlacement = findBestEasy(localBigBoard) + 1;
+    localPlacement = findBestEasy(localBigBoard, player) + 1;
   }
 
   int box = getStartSmallBoard(localPlacement);
@@ -343,21 +355,162 @@ int searchMoveEasy() {
       for (int j = 0; j < 3; j++)
         localBoard[i][j] = board[box / 9 + i][box % 9 + j];
 
-  int localBox = findBestEasy(localBoard);
+  int localBox = findBestEasy(localBoard, player);
+  placeValue(player, box + ((localBox / 3) * 9 + localBox % 3));
+}
+
+int movePriorityHard(char localBoard[3][3], int i, int j, int place, char currentPlayer) {
+  if (localBoard[i][j] != '_')
+    return 99;
+  
+  char oppositePlayer = (currentPlayer == 'X' ? 'O' : 'X');
+  char secondLocalBoard[3][3];
+  for (int i = 0; i < 3; i++)
+      for (int j = 0; j < 3; j++)
+        secondLocalBoard[i][j] = localBoard[i][j];
+  
+  secondLocalBoard[i][j] = currentPlayer;
+  if (canWinAI(secondLocalBoard, currentPlayer)) {
+    char localBigBoard[3][3];
+    for (int i = 0; i < 3; i++)
+      for (int j = 0; j < 3; j++)
+        localBigBoard[i][j] = bigBoard[i][j];
+    
+    localBigBoard[(place - 1) / 3][(place - 1) % 3] = currentPlayer;
+    if (canWinAI(localBigBoard, currentPlayer))
+      return 0;
+  }
+
+  if (i * 3 + j + 1 != place) {
+    int box = getStartSmallBoard(i * 3 + j + 1);
+    for (int i = 0; i < 3; i++)
+      for (int j = 0; j < 3; j++)
+        secondLocalBoard[i][j] = board[box / 9 + i][box % 9 + j];
+  }
+
+  if (canWinAI(secondLocalBoard, currentPlayer) || canWinAI(secondLocalBoard, oppositePlayer) || countInBoard(secondLocalBoard, '_') == 0)
+      return 9;
+  
+  bool opponentCanWinBoard = false;
+  int opponentLocalBox = findBestEasy(secondLocalBoard, oppositePlayer);
+  if (movePriorityEasy(secondLocalBoard, opponentLocalBox / 3, opponentLocalBox % 3, oppositePlayer) == 0) {
+    opponentCanWinBoard = true;
+    char localBigBoard[3][3];
+    for (int i = 0; i < 3; i++)
+      for (int j = 0; j < 3; j++)
+        localBigBoard[i][j] = bigBoard[i][j];
+    
+    localBigBoard[opponentLocalBox / 3][opponentLocalBox % 3] = oppositePlayer;
+    if (canWinAI(localBigBoard, oppositePlayer))
+      return 10;
+  }
+
+  int playerLocalBox = findBestEasy(secondLocalBoard, currentPlayer);
+  if (movePriorityEasy(secondLocalBoard, playerLocalBox / 3, playerLocalBox % 3, currentPlayer) == 0)
+    return 6;
+  
+  if (opponentCanWinBoard) {
+    char thirdLocalBoard[3][3];
+    if (i * 3 + j == opponentLocalBox) {
+      for (int i = 0; i < 3; i++)
+        for (int j = 0; j < 3; j++)
+          thirdLocalBoard[i][j] = secondLocalBoard[i][j];
+      
+      thirdLocalBoard[opponentLocalBox / 3][opponentLocalBox % 3] = oppositePlayer;
+    } else {
+      if (place == opponentLocalBox + 1) {
+        for (int i = 0; i < 3; i++)
+          for (int j = 0; j < 3; j++)
+            thirdLocalBoard[i][j] = localBoard[i][j];
+        
+        thirdLocalBoard[i][j] = currentPlayer;
+      } else {
+        int box = getStartSmallBoard(i * 3 + j + 1);
+        for (int i = 0; i < 3; i++)
+          for (int j = 0; j < 3; j++)
+            thirdLocalBoard[i][j] = board[box / 9 + i][box % 9 + j];
+      }
+    }
+
+    if (canWinAI(thirdLocalBoard, currentPlayer) || canWinAI(thirdLocalBoard, oppositePlayer) || countInBoard(thirdLocalBoard, '_') == 0)
+      return 7;
+    
+    playerLocalBox = findBestEasy(thirdLocalBoard, currentPlayer);
+    if (movePriorityEasy(thirdLocalBoard, playerLocalBox / 3, playerLocalBox % 3, currentPlayer) == 0)
+      return 7;
+    
+    return 8;
+  }
+
+  int opponentCount = countInBoard(secondLocalBoard, oppositePlayer);
+  int playerCount = countInBoard(secondLocalBoard, currentPlayer);
+  
+  if (opponentCount == 0)
+    return 1;
+  
+  if (opponentCount == 1)
+    return 2;
+  
+  if (opponentCount >= 2) {
+    if (playerCount > opponentCount)
+      return 3;
+
+    return 4;
+  }
+
+  return 5;
+}
+
+int findBestHard(char localBoard[3][3], int place, char currentPlayer) {
+  int bestMove = 99, bestI = 0, bestJ = 0;
+  for (int i = 0; i < 3; i++)
+    for (int j = 0; j < 3; j++) {
+      int currentMove = movePriorityHard(localBoard, i, j, place, currentPlayer);
+      if (currentMove < bestMove) {
+        bestMove = currentMove;
+        bestI = i;
+        bestJ = j;
+      }
+    }
+  
+  return bestI * 3 + bestJ;
+}
+
+void searchMoveHard() {
+  int localPlacement = placement;
+
+  if (placement == ALL) {
+    char localBigBoard[3][3];
+    for (int i = 0; i < 3; i++)
+      for (int j = 0; j < 3; j++)
+        localBigBoard[i][j] = bigBoard[i][j];
+    
+    localPlacement = findBestEasy(localBigBoard, player) + 1;
+  }
+
+  int box = getStartSmallBoard(localPlacement);
+  char localBoard[3][3];
+  for (int i = 0; i < 3; i++)
+      for (int j = 0; j < 3; j++)
+        localBoard[i][j] = board[box / 9 + i][box % 9 + j];
+
+  int localBox = findBestHard(localBoard, localPlacement, player);
   placeValue(player, box + ((localBox / 3) * 9 + localBox % 3));
 }
 
 void makeMoveAI() {
   if (difficulty == EASY)
     searchMoveEasy();
+  else
+    searchMoveHard();
 
   player = (player == 'X' ? 'O' : 'X');
 }
 
 /*    SCREEN MANIPULATION     */
 void finishGame(bool draw, char winner) {
-  state = FIN;
   hasWon = true;
+  state = FIN;
   playSound(200, 200);
   tft.fillScreen(BLACK);
   tft.setTextSize(3);
@@ -454,12 +607,20 @@ void drawWinnerSmall(int x, int y, char value) {
 
 void drawMenu() {
   state = MENU;
-  tft.setTextSize(3);
+  tft.setTextSize(4);
   tft.fillScreen(BLACK);
 
-  tft.setCursor(10, 95);
+  tft.setCursor(80, 15);
+  tft.println("UTTT");
+
+  tft.setTextSize(3);
+  tft.setCursor(10, 70);
+  tft.println("Select");
+  tft.setCursor(10, 90);
+  tft.println("game mode:");
+  tft.setCursor(10, 145);
   tft.println("Singleplayer");
-  tft.setCursor(10, 125);
+  tft.setCursor(10, 175);
   tft.println("Multiplayer");
 
   tft.setTextSize(2);
@@ -471,10 +632,31 @@ void drawSingleplayerMenu() {
   tft.setTextSize(3);
   tft.fillScreen(BLACK);
 
-  tft.setCursor(10, 95);
-  tft.println("Easy");
+  tft.setCursor(10, 50);
+  tft.println("Choose");
+  tft.setCursor(10, 75);
+  tft.println("difficulty:");
   tft.setCursor(10, 125);
+  tft.println("Easy");
+  tft.setCursor(10, 155);
   tft.println("Hard");
+
+  tft.setTextSize(2);
+}
+
+void drawSelectSymbol() {
+  state = SP_SYMBOL;
+  tft.setTextSize(3);
+  tft.fillScreen(BLACK);
+
+  tft.setCursor(10, 50);
+  tft.println("Choose");
+  tft.setCursor(10, 75);
+  tft.println("symbol:");
+  tft.setCursor(10, 125);
+  tft.println("X");
+  tft.setCursor(10, 155);
+  tft.println("O");
 
   tft.setTextSize(2);
 }

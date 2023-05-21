@@ -1,0 +1,18 @@
+singura tabla:
+- cautam mutarea cu cea mai buna prioritate globala
+
+toate tablele:
+- cautam in tabla mare folosind prioritate locala si in tabla aleasa cautam mutarea cu cea mai buna prioritate globala
+
+prioritati:
+0 - mutare care face ca jucatorul sa castige jocul
+9 - mutare care duce inamicul intr-o tabla castigata/remizata
+10 - mutare care duce inamicul intr-o tabla pe care o poate castiga, caz in care castiga intregul joc
+6 - mutare care duce inamicul intr-o tabla pe care jucatorul curent o poate castiga
+7 - mutare care duce inamicul intr-o tabla pe care o poate castiga, iar daca o castiga duce jucatorul curent intr-o tabla terminata sau pe care o poate castiga.
+8 - mutare care duce inamicul intr-o tabla pe care o poate castiga, iar daca o castiga duce jucatorul curent intr-o tabla pe care nu o poate castiga
+1 - mutare care duce inamicul intr-o tabla in care nu a mutat deloc
+2 - mutare care duce inamicul intr-o tabla in care a mutat o singura data
+3 - mutare care duce inamicul intr-o tabla in care a mutat de minim 2 ori, dar jucatorul curent a mutat de mai multe ori
+4 - mutare care duce inamicul intr-o tabla in care a mutat de minim 2 ori, iar jucatorul curent a mutat de cel mult atatea ori cat inamicul
+5 - else

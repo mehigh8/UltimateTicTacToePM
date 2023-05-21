@@ -11,8 +11,9 @@
 
 #define MENU 0
 #define SP_MENU 1
-#define GAME 2
-#define FIN 3
+#define SP_SYMBOL 2
+#define GAME 3
+#define FIN 4
 
 #define EASY 0
 #define HARD 1
